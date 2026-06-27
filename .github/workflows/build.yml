@@ -1,4 +1,4 @@
-name: 2 · Build WebGL & deploy to Pages
+name: Build WebGL & deploy to Pages
 
 on:
   push:

@@ -1,62 +1,72 @@
 # Cloud build setup (GameCI → GitHub Pages)
 
 This builds PixelLeap in the cloud on every push and publishes a **playable WebGL
-version** to a GitHub Pages URL. No local Unity install needed.
+version** to a GitHub Pages URL. The heavy Unity editor build runs in the cloud —
+you only need **Unity Hub** locally (a small ~150 MB download, *not* the multi-GB
+editor) to generate a free license file once.
 
-You only do steps 1–6 once. After that, every `git push` rebuilds and redeploys.
+You do steps 1–4 once. After that, every `git push` rebuilds and redeploys.
+
+> The repo is already created and pushed: https://github.com/srdjan-ethernal/PixelLeap
+> Pages is already enabled (Source: GitHub Actions). Future game URL:
+> **https://srdjan-ethernal.github.io/PixelLeap/**
 
 ---
 
-## Step 1 — Put the project on GitHub
+## Step 1 — Get a free Unity Personal license file (.ulf)
 
-Create a repo and push this `PixelLeap` folder so that `Assets/`, `ProjectSettings/`,
-`Packages/` and `.github/` are at the **repository root**.
+GameCI's old "request activation file" action is deprecated. The current way:
 
-```bash
-cd C:\Users\Srdjan\PixelLeap
-git init
-git add .
-git commit -m "PixelLeap: Unity 2D platformer + GameCI"
-git branch -M main
-git remote add origin https://github.com/<you>/PixelLeap.git
-git push -u origin main
+1. Install **Unity Hub**: https://unity.com/download (just the Hub — you can skip
+   installing an Editor).
+2. Open Unity Hub and **sign in** with a free Unity account (create one if needed).
+3. Go to **Unity Hub → Preferences (⚙) → Licenses → Add → Get a free personal license**.
+4. This writes the license file to:
+   **`C:\ProgramData\Unity\Unity_lic.ulf`** (Windows).
+
+## Step 2 — Add the license + account as repo secrets
+
+Repo → **Settings → Secrets and variables → Actions → New repository secret**, add three:
+
+| Secret name | Value |
+| --- | --- |
+| `UNITY_LICENSE` | The **entire contents** of `C:\ProgramData\Unity\Unity_lic.ulf` (open in a text editor, copy all — it's XML) |
+| `UNITY_EMAIL` | Your Unity account email |
+| `UNITY_PASSWORD` | Your Unity account password |
+
+> GameCI uses these only to activate Unity during the build; it doesn't store them.
+> `UNITY_SERIAL` is only for paid Plus/Pro seats — not needed here.
+
+Quick way to copy the .ulf contents to your clipboard (PowerShell):
+
+```powershell
+Get-Content C:\ProgramData\Unity\Unity_lic.ulf -Raw | Set-Clipboard
 ```
 
-## Step 2 — Get a Unity activation file (.alf)
+Or add the secret straight from the CLI:
 
-1. On GitHub: **Actions** tab → in the left list pick **"1 · Acquire Unity activation file"** → **Run workflow**.
-2. When it finishes (~1 min), open the run → **Artifacts** → download **"Manual Activation File"**.
-3. Unzip it — inside is `Unity_v2022.x.alf`.
+```powershell
+gh secret set UNITY_LICENSE  --repo srdjan-ethernal/PixelLeap < C:\ProgramData\Unity\Unity_lic.ulf
+gh secret set UNITY_EMAIL    --repo srdjan-ethernal/PixelLeap --body "you@example.com"
+gh secret set UNITY_PASSWORD --repo srdjan-ethernal/PixelLeap --body "your-password"
+```
 
-## Step 3 — Convert .alf → .ulf (free Personal license)
+## Step 3 — Build it
 
-1. Go to **https://license.unity3d.com/manual**.
-2. Upload the `.alf` file.
-3. Choose **Unity Personal** → *"I don't use Unity in a professional capacity"* (or whichever fits).
-4. Download the resulting **`Unity_v2022.x.ulf`** file.
+Either push any commit, or trigger manually:
 
-## Step 4 — Add the license as a repo secret
+```powershell
+gh workflow run "Build WebGL & deploy to Pages" --repo srdjan-ethernal/PixelLeap
+```
 
-1. Repo → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**.
-2. Name: `UNITY_LICENSE`
-3. Value: open the `.ulf` file in a text editor and paste its **entire contents** (it's XML).
-4. Save.
+- First build takes ~10–20 min (Unity image download + compile). Later builds are
+  faster (the `Library/` folder is cached).
+- Watch progress: `gh run watch --repo srdjan-ethernal/PixelLeap`
 
-> Optional (only for Unity Plus/Pro seats): also add `UNITY_EMAIL` and `UNITY_PASSWORD`
-> secrets. For a free Personal license, `UNITY_LICENSE` alone is enough.
+## Step 4 — Play
 
-## Step 5 — Turn on GitHub Pages
-
-Repo → **Settings** → **Pages** → **Build and deployment** → **Source: GitHub Actions**.
-
-## Step 6 — Build it
-
-Either push any commit, or **Actions** → **"2 · Build WebGL & deploy to Pages"** → **Run workflow**.
-
-- First build takes ~10–20 min (Unity image download + compile). Later builds are faster (Library is cached).
-- When the **deploy** job finishes, your game is live at:
-  `https://<you>.github.io/PixelLeap/`
-  (the exact URL is shown on the deploy job and under Settings → Pages.)
+When the **deploy** job finishes, your game is live at:
+**https://srdjan-ethernal.github.io/PixelLeap/**
 
 ---
 
@@ -64,12 +74,12 @@ Either push any commit, or **Actions** → **"2 · Build WebGL & deploy to Pages
 
 | Symptom | Fix |
 | --- | --- |
-| Build job fails at "Build project" with a license error | Re-check `UNITY_LICENSE` secret holds the **full** `.ulf` XML, and that you converted the `.alf` for the **same** Unity version as `ProjectSettings/ProjectVersion.txt`. |
-| Game page is blank / "failed to download" | Compression is disabled by `Assets/Editor/WebGLBuildConfig.cs`, which fixes this on Pages. Make sure that file got committed. |
-| Deploy job skipped | Pages source must be **GitHub Actions** (Step 5). |
-| Want a different Unity version | Edit `ProjectSettings/ProjectVersion.txt`; GameCI auto-selects the matching cloud image. |
+| Build fails with a license error | Re-check `UNITY_LICENSE` holds the **full** `.ulf` XML, and that `UNITY_EMAIL`/`UNITY_PASSWORD` match the account that generated it. |
+| Game page is blank / "failed to download" | Compression is disabled by `Assets/Editor/WebGLBuildConfig.cs`, which fixes this on Pages — make sure that file is committed. |
+| Deploy job skipped | Pages source must be **GitHub Actions** (already set for this repo). |
+| Different Unity version | Edit `ProjectSettings/ProjectVersion.txt`; GameCI auto-selects the matching cloud image. Regenerate the `.ulf` with the same major version. |
 
-## What just compiles, no WebGL?
+## Just a compile check, no WebGL?
 
-If you only want a pass/fail compile check (faster, no Pages), you can later add a
-`game-ci/unity-test-runner@v4` job — say the word and I'll add it.
+Want a faster pass/fail compile (no Pages)? I can add a `game-ci/unity-test-runner@v4`
+job — just ask.
