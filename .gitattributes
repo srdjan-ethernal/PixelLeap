@@ -1,0 +1,26 @@
+# Normalize line endings to LF for all text (CI builds run on Linux).
+* text=auto eol=lf
+
+*.cs    text eol=lf
+*.meta  text eol=lf
+*.unity text eol=lf
+*.asset text eol=lf
+*.json  text eol=lf
+*.yml   text eol=lf
+*.md    text eol=lf
+*.txt   text eol=lf
+
+# Treat Unity YAML assets with a smart merge driver if configured.
+*.unity merge=unityyamlmerge
+*.asset merge=unityyamlmerge
+*.prefab merge=unityyamlmerge
+
+# Common binary asset types (none yet, but future-proof so they aren't mangled).
+*.png  binary
+*.jpg  binary
+*.psd  binary
+*.wav  binary
+*.mp3  binary
+*.ogg  binary
+*.fbx  binary
+*.ttf  binary
